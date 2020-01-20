@@ -6,13 +6,18 @@ from glob import glob
 import shutil
 
 LABEL_FORMAT = "*.xml"
-ROOT_PATH = "../../DATASET/DETRAC"
-TRAIN_LABEL_DIR = "DETRAC-Train-Annotations-XML"
-TRAIN_IMAGE_DIR = "Insight-MVT_Annotation_Train"
-TRAIN_LABEL_PATH = path.join(ROOT_PATH, TRAIN_LABEL_DIR)
-LABEL_XMLS = glob(path.join(TRAIN_LABEL_PATH, LABEL_FORMAT))
-OUTPUT_LABELS_DIR = "Caltech/labels_with_ids"
-OUTPUT_IMAGES_DIR = "Caltech/images"
+ROOT_PATH = "/home/robert/DETRAC"
+# ----------------------------------------------
+# ----------------------------------------------
+LABEL_DIR = "DETRAC-Annotations-XML"
+IMAGE_DIR = "Insight-MVT_Annotation"
+# ------------------------------------------------
+# ------------------------------------------------
+LABEL_PATH = path.join(ROOT_PATH, LABEL_DIR)
+LABEL_XMLS = glob(path.join(LABEL_PATH, LABEL_FORMAT))
+
+print(IMAGE_DIR)
+
 class_list = ['car', 'bus', 'van']
 
 
@@ -43,11 +48,17 @@ def extract_traget_info(target, num):
         class_idx = class_list.index(vechicle_type)
     x_center = left + (width / 2.0)
     y_center = top + (height / 2.0)
-    str_result = "{} {} {} {} {} {} {}".format(num, class_idx, id, x_center, y_center, width, height)
+    str_result = "{} {} {} {} {} {} {}".format(
+        num, class_idx, id, x_center, y_center, width, height)
     return str_result
 
 
-def read_frame_tag(frame_tag):
+def translate_one_frame(frame_tag):
+    """
+    Translate one frame from xml to string
+    :param frame_tag:
+    :return:
+    """
     str_label = []
     num = frame_tag.attrib["num"]
     for target_list in frame_tag:
@@ -65,10 +76,11 @@ def draw_rect(img_path, int_label):
 
     num = str(num)
     filename = "img" + num.zfill(5)
-    print("Reading {}".format(path.join(img_file_path, filename + ".jpg")))
+    print("Reading {}".format(path.join(img_path, filename + ".jpg")))
 
-    img_drawed = cv2.imread(path.join(img_file_path, filename + ".jpg"))
-    img_drawed = cv2.putText(img_drawed, str(id), (x_center, y_center), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 1)
+    img_drawed = cv2.imread(path.join(img_path, filename + ".jpg"))
+    img_drawed = cv2.putText(img_drawed, str(
+        id), (x_center, y_center), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 1)
 
     for label in int_label:
         num, cl, id, x_center, y_center, width, height = label
@@ -76,23 +88,24 @@ def draw_rect(img_path, int_label):
         top = int(y_center - (float(height) / 2))
         right = left + width
         bottom = top + height
-
+        img_drawed =cv2.putText(img_drawed,str(id),(left,top),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,255),2)
         img_drawed = cv2.rectangle(img_drawed, (left, top), (right, bottom), 255, 1)
     return img_drawed
 
 
-def translate_label(imagepath_list, int_label):
+def translate_label(vid_name,image_path_root, int_label):
     lbl = int_label[0]
     num, cl, id, x_center, y_center, width, height = lbl
     num = str(num)
     img_filename = "img" + num.zfill(5)
     txt_filename = "img" + num.zfill(5)
-    image_full_path = path.join(img_file_path, img_filename + ".jpg")
-    txt_full_path = path.join(OUTPUT_LABELS_DIR, img_filename + ".txt")
+
+    image_full_path = path.join(image_path_root, img_filename + ".jpg")
+    txt_full_path = path.join("Caltech/labels_with_id", "{}_{}".format(vid_name,img_filename) + ".txt")
     img_cv = cv2.imread(image_full_path)
     img_height, img_width = img_cv.shape[0], img_cv.shape[1]
     assert (img_height < img_width)
-    # shutil.copy(image_full_path,OUTPUT_IMAGES_DIR)
+    shutil.copy(image_full_path,"Caltech/images/{}_{}.jpg".format(vid_name,img_filename))
     txt_label_file = open(txt_full_path, 'w')
     print(int_label)
     print("Moving {}".format(image_full_path))
@@ -105,7 +118,8 @@ def translate_label(imagepath_list, int_label):
         height = float(height) / float(img_height)
         x_center = float(x_center) / float(img_width)
         y_center = float(y_center) / float(img_height)
-        line = "{} {} {} {} {} {}".format(cl,id,x_center,y_center,width,height)
+        line = "{} {} {} {} {} {}".format(
+            0, id, x_center, y_center, width, height)
         str_label.append(line)
     str_label = "\n".join(str_label)
     txt_label_file.write(str_label)
@@ -113,7 +127,10 @@ def translate_label(imagepath_list, int_label):
     print(str_label)
 
 
-def draw(all_label, imagepath_list):
+def draw(out_name, all_labels, imagepath_list):
+    vidname = out_name.split("/")[-1].replace(".avi","")
+    out = cv2.VideoWriter(out_name, cv2.VideoWriter_fourcc('X', 'V', 'I', 'D'), 30,
+                          (960, 540))
     for label in all_labels:
 
         label = label.split('\n')
@@ -124,23 +141,35 @@ def draw(all_label, imagepath_list):
             label_list.append(line)
 
         drawed_img = draw_rect(imagepath_list, label_list)
-        translate_label(imagepath_list, label_list)
+        out.write(drawed_img)
+        translate_label(vidname,imagepath_list, label_list)
         cv2.imshow("test", drawed_img)
-        if cv2.waitKey() == 'q':
+        if cv2.waitKey(15) == 'q':
             break
 
 
-for xml_file in LABEL_XMLS:
-    if xml_file.split("/")[-1] == "MVI_20011.xml":
-        all_labels = []
-        print("Reading {}".format(xml_file))
-        img_file_path = xml_file.replace(TRAIN_LABEL_DIR, TRAIN_IMAGE_DIR).replace(".xml", "")
-        tree = ET.parse(xml_file)
+def translate(XML_PATHS, LABEL_DIR, IMAGE_DIR):
+    for xml_path in XML_PATHS:
+        # collecting all label in single video, the number of the frame == len(labels_in_one_videos)
+        name = xml_path.split('/')[-1].replace('xml', 'avi')
+        video_out ="videos/{}".format(name)
+        labels_in_one_videos = []
+        print("Reading {}".format(xml_path))
+        img_file_path = xml_path.replace(
+            LABEL_DIR, IMAGE_DIR).replace(".xml", "")
+        tree = ET.parse(xml_path)
         root = tree.getroot()
         for elem in root:
             if elem.tag == "frame":
-                string_frame = read_frame_tag(elem)
-                all_labels.append(string_frame)
-        assert len(all_labels) == len(os.listdir(img_file_path))
-        draw(all_labels, img_file_path)
-        break
+                string_frame = translate_one_frame(elem)
+                labels_in_one_videos.append(string_frame)
+        print("number of labels",len(labels_in_one_videos))
+        print("number of images",len(os.listdir(img_file_path)))
+
+        # assert len(labels_in_one_videos) == len(os.listdir(img_file_path))
+
+        draw(video_out, labels_in_one_videos, img_file_path)
+
+
+
+translate(LABEL_XMLS, LABEL_DIR, IMAGE_DIR)
