@@ -78,10 +78,8 @@ def draw_rect(img_path, int_label):
     filename = "img" + num.zfill(5)
     print("Reading {}".format(path.join(img_path, filename + ".jpg")))
 
-    img_drawed = cv2.imread(path.join(img_path, filename + ".jpg"))
-    img_drawed = cv2.putText(img_drawed, str(
-        id), (x_center, y_center), cv2.FONT_HERSHEY_COMPLEX, 1, 255, 1)
-
+    ori = cv2.imread(path.join(img_path, filename + ".jpg"))
+    img_drawed = ori.copy()
     for label in int_label:
         num, cl, id, x_center, y_center, width, height = label
         left = int(x_center - (float(width) / 2))
@@ -90,7 +88,7 @@ def draw_rect(img_path, int_label):
         bottom = top + height
         img_drawed =cv2.putText(img_drawed,str(id),(left,top),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,255),2)
         img_drawed = cv2.rectangle(img_drawed, (left, top), (right, bottom), 255, 1)
-    return img_drawed
+    return img_drawed,ori
 
 
 def translate_label(vid_name,image_path_root, int_label):
@@ -131,6 +129,8 @@ def draw(out_name, all_labels, imagepath_list):
     vidname = out_name.split("/")[-1].replace(".avi","")
     out = cv2.VideoWriter(out_name, cv2.VideoWriter_fourcc('X', 'V', 'I', 'D'), 30,
                           (960, 540))
+    out_raw = cv2.VideoWriter(out_name.replace(".avi","raw_.avi"),cv2.VideoWriter_fourcc('X', 'V', 'I', 'D'), 30,
+                          (960, 540))                       
     for label in all_labels:
 
         label = label.split('\n')
@@ -140,8 +140,9 @@ def draw(out_name, all_labels, imagepath_list):
             line = [int(float(l)) for l in line]
             label_list.append(line)
 
-        drawed_img = draw_rect(imagepath_list, label_list)
+        drawed_img,ori = draw_rect(imagepath_list, label_list)
         out.write(drawed_img)
+        out_raw.write(ori)
         translate_label(vidname,imagepath_list, label_list)
         cv2.imshow("test", drawed_img)
         if cv2.waitKey(15) == 'q':
